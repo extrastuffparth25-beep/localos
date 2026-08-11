@@ -30,7 +30,7 @@ from sender import send_outreach_emails, _send_outreach_email
 from inbox_scanner import scan_for_replies
 from ai_closer import generate_expert_reply
 from drip_engine import get_due_followups
-from whatsapp_alert import alert_client_closed
+from closing_alert import alert_client_closed
 
 # ──────────────────────────────────────────────
 # Logging Setup
