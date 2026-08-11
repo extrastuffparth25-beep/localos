@@ -40,11 +40,21 @@ ADVANCED NEGOTIATION RULES (CHRIS VOSS STYLE):
 8. **Analyze Images.** If they attach an image (screenshot of analytics, etc.), look at it carefully and use it in your argument to show you actually reviewed their data.
 9. **Sound Human.** Use short sentences, contractions, and conversational English. NEVER sound like an AI.
 
-The conversation history and their latest reply will be provided to you.
+The conversation history, their latest reply, and their business data will be provided to you. Use their data (especially their competitor) as leverage to close the deal.
 ONLY output the exact email response you want to send back. No subject line, just the body text.
 """
 
-def generate_expert_reply(business_name: str, niche: str, city: str, thread_history: str, latest_reply: str, images: list[dict[str, str]] = None) -> tuple[str, str, str]:
+def generate_expert_reply(
+    business_name: str, 
+    niche: str, 
+    city: str, 
+    thread_history: str, 
+    latest_reply: str, 
+    competitor: str = "",
+    rating: str = "",
+    reviews: str = "",
+    images: list[dict[str, str]] = None
+) -> tuple[str, str, str]:
     """
     Feeds the email thread to Gemini to generate the perfect response.
     Returns (Response Body, Sentiment/Action, Next Steps for Owner).
@@ -61,6 +71,7 @@ def generate_expert_reply(business_name: str, niche: str, city: str, thread_hist
         
         prompt = f"""
 BUSINESS: {business_name} ({niche} in {city})
+DATA LEVERAGE: They have a {rating} rating with {reviews} reviews. Their #1 competitor in {city} is {competitor}. USE THIS TO CREATE FOMO.
 ---
 PREVIOUS CONVERSATION HISTORY:
 {thread_history}

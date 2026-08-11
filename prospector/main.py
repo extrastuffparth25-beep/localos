@@ -145,6 +145,9 @@ def main() -> None:
                 city=lead.get("city", ""),
                 thread_history=history,
                 latest_reply=reply['body'],
+                competitor=lead.get("top_competitor", "their biggest competitor"),
+                rating=lead.get("google_rating", "average"),
+                reviews=lead.get("review_count", "few"),
                 images=images
             )
             history += f"\n\nAI ({date.today()}): {expert_response}"
