@@ -45,17 +45,27 @@ def get_email_body(msg) -> str:
                 pass
     return ""
 
-def scan_for_replies(prospect_emails: list[str]) -> list[dict[str, str]]:
+def is_auto_responder(subject: str, body: str) -> bool:
+    """Check if the email is an automated out-of-office reply."""
+    indicators = [
+        "out of office", "automatic reply", "auto-reply", "vacation",
+        "autoreply", "thank you for your message", "away from my desk"
+    ]
+    text = (subject + " " + body).lower()
+    return any(indicator in text for indicator in indicators)
+
+def scan_for_replies(prospect_emails: list[str]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """
-    Connect to Gmail via IMAP, find unread emails from prospect emails,
-    extract the message, mark as read, and return the data.
+    Connect to Gmail via IMAP, find unread emails.
+    Returns (valid_replies, bounces).
     """
     if not OUTREACH_GMAIL_USER or not OUTREACH_GMAIL_APP_PASSWORD:
         log.warning("Outreach Gmail credentials not set. Skipping inbox scan.")
         return []
 
-    log.info("Scanning inbox for replies from prospects...")
+    log.info("Scanning inbox for replies and bounces...")
     replies = []
+    bounces = []
 
     try:
         # Connect to Gmail IMAP
@@ -85,28 +95,36 @@ def scan_for_replies(prospect_emails: list[str]) -> list[dict[str, str]]:
                     sender_email = match.group(1) if match else sender.strip()
                     sender_email = sender_email.lower()
                     
+                    subject, encoding = decode_header(msg.get("Subject", ""))[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(encoding if encoding else "utf-8")
+                        
+                    body = clean_text(get_email_body(msg))
+                    
+                    # Mark as read immediately
+                    mail.store(e_id, '+FLAGS', '\\Seen')
+                    
+                    # Catch Bounces (Mailer-Daemon)
+                    if "mailer-daemon" in sender_email or "postmaster" in sender_email:
+                        bounces.append({"subject": subject, "body": body})
+                        continue
+                        
+                    # Ignore auto-responders
+                    if is_auto_responder(subject, body):
+                        log.info("Ignored auto-responder from %s", sender_email)
+                        continue
+                        
                     if sender_email in [e.lower() for e in prospect_emails]:
-                        log.info("Found reply from prospect: %s", sender_email)
-                        
-                        # Get Subject
-                        subject, encoding = decode_header(msg.get("Subject", ""))[0]
-                        if isinstance(subject, bytes):
-                            subject = subject.decode(encoding if encoding else "utf-8")
-                            
-                        body = clean_text(get_email_body(msg))
-                        
+                        log.info("Found valid reply from prospect: %s", sender_email)
                         replies.append({
                             "email": sender_email,
                             "subject": subject,
                             "body": body
                         })
-                        
-                        # Mark as read (it's already read by fetching, but this ensures it)
-                        mail.store(e_id, '+FLAGS', '\Seen')
 
         mail.logout()
         
     except Exception as e:
         log.error("IMAP Error during inbox scan: %s", str(e))
         
-    return replies
+    return replies, bounces

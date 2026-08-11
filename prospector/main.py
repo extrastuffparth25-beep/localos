@@ -18,6 +18,8 @@ import csv
 import io
 import logging
 import sys
+import shutil
+import tempfile
 from datetime import datetime, date
 from pathlib import Path
 from typing import Any
@@ -31,6 +33,7 @@ from inbox_scanner import scan_for_replies
 from ai_closer import generate_expert_reply
 from drip_engine import get_due_followups
 from closing_alert import alert_client_closed
+from bounce_detector import extract_bounced_email
 
 # ──────────────────────────────────────────────
 # Logging Setup
@@ -54,10 +57,28 @@ def load_existing_prospects(csv_path: str) -> list[dict[str, str]]:
 
 def save_prospects_to_csv(csv_path: str, leads: list[dict[str, str]]) -> None:
     path = Path(csv_path)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(leads)
+    
+    # Atomic write: Write to temp file first, then replace
+    temp_path = path.with_suffix(".tmp.csv")
+    backup_path = path.with_suffix(".backup.csv")
+    
+    try:
+        # Create backup if exists
+        if path.exists():
+            shutil.copy2(path, backup_path)
+            
+        with temp_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(leads)
+            
+        # Atomic replace
+        temp_path.replace(path)
+        log.info("CRM data safely saved using atomic write.")
+    except Exception as e:
+        log.error("CRITICAL: Failed to save CRM data: %s", str(e))
+        if temp_path.exists():
+            temp_path.unlink()
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="LOCALOS — AI Agency Orchestrator")
@@ -81,9 +102,18 @@ def main() -> None:
 
     # 2 & 3. Inbox Scan & AI Closer
     log.info("-" * 45)
-    log.info("Step 1: Checking Inbox & Running AI Closer...")
+    log.info("Step 1: Checking Inbox, Auto-Responders, and Bounces...")
     prospect_emails = list(leads_dict.keys())
-    replies = scan_for_replies(prospect_emails)
+    replies, bounces = scan_for_replies(prospect_emails)
+    
+    # Process Bounces
+    if bounces:
+        log.info("Processing %d potential bounce notices...", len(bounces))
+        for bounce in bounces:
+            bounced_email = extract_bounced_email(bounce["subject"], bounce["body"])
+            if bounced_email and bounced_email in leads_dict:
+                log.warning("🚨 BOUNCE DETECTED: %s. Marking as Bounced to protect sender score.", bounced_email)
+                leads_dict[bounced_email]["status"] = "Bounced"
     
     for reply in replies:
         sender = reply["email"]
