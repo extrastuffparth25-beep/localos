@@ -186,7 +186,10 @@ CSV_FIELDNAMES: list[str] = [
     "score",
     "tier",
     "date_scraped",
-    "outreach_status",
+    "status",
+    "sequence_step",
+    "last_contact_date",
+    "conversation_history"
 ]
 
 # ──────────────────────────────────────────────

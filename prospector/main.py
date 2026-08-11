@@ -1,14 +1,14 @@
 """
-main.py — LOCALOS Prospector Pipeline Orchestrator.
+main.py — LOCALOS Fully Autonomous AI Agency Orchestrator.
 
 Sequence:
     1. Load existing prospects from CSV
-    2. Run multi-source prospector
-    3. Score and tier all new leads
-    4. Append to CSV
-    5. Create outreach drafts in Gmail
-    6. Send the daily digest email
-    7. Log final stats
+    2. Inbox Scan: Check for replies via IMAP
+    3. AI Closer: Handle replies and close deals (WhatsApp alert on Win)
+    4. Drip Engine: Send sequence follow-ups to non-responders
+    5. Prospecting: Find, score, and send Email 1 to new leads
+    6. Update & Persist CSV
+    7. Send daily digest email
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import csv
 import io
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,11 @@ from config import CSV_FIELDNAMES, LEADS_CSV
 from prospector import prospect_leads
 from scorer import score_leads_batch
 from emailer import send_digest
-from sender import send_outreach_emails
+from sender import send_outreach_emails, _send_outreach_email
+from inbox_scanner import scan_for_replies
+from ai_closer import generate_expert_reply
+from drip_engine import get_due_followups
+from whatsapp_alert import alert_client_closed
 
 # ──────────────────────────────────────────────
 # Logging Setup
@@ -40,167 +44,148 @@ logging.basicConfig(
 )
 log = logging.getLogger("localos")
 
-
-# ──────────────────────────────────────────────
-# CSV Persistence
-# ──────────────────────────────────────────────
 def load_existing_prospects(csv_path: str) -> list[dict[str, str]]:
-    """Load all existing prospects from the CSV file."""
     path = Path(csv_path)
     if not path.exists():
-        log.info("No existing prospects file found. Starting fresh.")
         return []
-
     with path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        leads = list(reader)
+        return list(reader)
 
-    log.info("Loaded %d existing prospects from %s", len(leads), csv_path)
-    return leads
-
-
-def append_prospects_to_csv(csv_path: str, new_leads: list[dict[str, str]]) -> None:
-    """Append new prospects to the CSV file."""
+def save_prospects_to_csv(csv_path: str, leads: list[dict[str, str]]) -> None:
     path = Path(csv_path)
-    file_exists = path.exists() and path.stat().st_size > 0
-
-    with path.open("a", encoding="utf-8", newline="") as f:
+    with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
-        if not file_exists:
-            writer.writeheader()
-        writer.writerows(new_leads)
+        writer.writeheader()
+        writer.writerows(leads)
 
-    log.info("Appended %d new prospects to %s", len(new_leads), csv_path)
-
-
-# ──────────────────────────────────────────────
-# Main Pipeline
-# ──────────────────────────────────────────────
 def main() -> None:
-    parser = argparse.ArgumentParser(description="LOCALOS — Lead Prospector Pipeline")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the HTML digest to stdout instead of sending via SMTP.",
-    )
-    parser.add_argument(
-        "--preview-outreach",
-        action="store_true",
-        help="Preview outreach email sequences for found leads.",
-    )
-    parser.add_argument(
-        "--niches",
-        nargs="+",
-        help="Limit prospecting to specific niches (e.g., Dentist Plumber)",
-    )
-    parser.add_argument(
-        "--cities",
-        nargs="+",
-        help="Limit prospecting to specific cities (e.g., 'Dallas TX' 'Miami FL')",
-    )
-    parser.add_argument(
-        "--skip-sending",
-        action="store_true",
-        help="Skip sending autonomous outreach emails.",
-    )
+    parser = argparse.ArgumentParser(description="LOCALOS — AI Agency Orchestrator")
+    parser.add_argument("--skip-prospecting", action="store_true")
     args = parser.parse_args()
 
     log.info("=" * 65)
-    log.info("LOCALOS Prospector — Starting daily pipeline")
+    log.info("LOCALOS — Waking up AI Employee...")
     log.info("=" * 65)
 
     stats: dict[str, Any] = {
-        "sources_tried": 0,
-        "candidates_found": 0,
-        "duplicates_filtered": 0,
-        "leads_accepted": 0,
-        "cities_searched": [],
-        "start_time": datetime.now(),
-        "elapsed": "",
+        "sources_tried": 0, "candidates_found": 0, "duplicates_filtered": 0,
+        "leads_accepted": 0, "cities_searched": [], "start_time": datetime.now(),
+        "elapsed": "", "replies_handled": 0, "followups_sent": 0, "new_emails_sent": 0,
+        "deals_closed": 0
     }
 
-    # Step 1: Load existing prospects
-    existing = load_existing_prospects(LEADS_CSV)
+    # 1. Load State
+    leads = load_existing_prospects(LEADS_CSV)
+    leads_dict = {l.get("email", "").lower(): l for l in leads if l.get("email")}
 
-    # Step 2: Prospect new leads
+    # 2 & 3. Inbox Scan & AI Closer
     log.info("-" * 45)
-    log.info("Step 2: Prospecting new leads ...")
-    new_leads = prospect_leads(
-        existing, stats,
-        target_niches=args.niches,
-        target_cities=args.cities,
-    )
+    log.info("Step 1: Checking Inbox & Running AI Closer...")
+    prospect_emails = list(leads_dict.keys())
+    replies = scan_for_replies(prospect_emails)
+    
+    for reply in replies:
+        sender = reply["email"]
+        lead = leads_dict.get(sender)
+        if not lead:
+            continue
+            
+        biz_name = lead.get("business_name", "Unknown")
+        log.info("Processing reply from %s...", biz_name)
+        
+        # Append to conversation history
+        history = lead.get("conversation_history", "")
+        history += f"\n\nCLIENT ({date.today()}): {reply['body']}"
+        
+        # Ask Gemini to handle it
+        expert_response, status_intent, next_steps = generate_expert_reply(
+            biz_name, lead.get("niche", ""), lead.get("city", ""), history, reply['body']
+        )
+        
+        history += f"\n\nAI ({date.today()}): {expert_response}"
+        lead["conversation_history"] = history
+        
+        # Send the AI response back
+        _send_outreach_email(sender, f"Re: {reply['subject']}", expert_response)
+        stats["replies_handled"] += 1
+        
+        # Handle the sentiment
+        if status_intent == "NOT_INTERESTED":
+            lead["status"] = "Lost"
+            log.info("%s is NOT INTERESTED. Marking as Lost.", biz_name)
+        elif status_intent == "CLOSED":
+            lead["status"] = "Won"
+            stats["deals_closed"] += 1
+            log.info("🎉 %s CLOSED! Sending WhatsApp Alert...", biz_name)
+            alert_client_closed(biz_name, sender, history[-300:], next_steps)
+        else:
+            lead["status"] = "Replied"
+            log.info("%s is INTERESTED. AI handled the objection.", biz_name)
+
+    # 4. Drip Engine (Follow-ups)
+    log.info("-" * 45)
+    log.info("Step 2: Processing Drip Campaign Follow-ups...")
+    due_followups = get_due_followups(leads)
+    
+    for step, due_leads in due_followups.items():
+        if not due_leads:
+            continue
+        log.info("Sending Email #%d to %d leads...", step + 1, len(due_leads))
+        send_stats = send_outreach_emails(due_leads, email_index=step)
+        stats["followups_sent"] += send_stats["sent"]
+        
+        # Update sequence step and date
+        for lead in due_leads:
+            lead["sequence_step"] = str(step)
+            lead["last_contact_date"] = str(date.today())
+
+    # 5. Prospecting & First Emails
+    if not args.skip_prospecting:
+        log.info("-" * 45)
+        log.info("Step 3: Prospecting New Leads...")
+        new_leads = prospect_leads(leads, stats)
+        
+        if new_leads:
+            scored_leads = score_leads_batch(new_leads)
+            scored_leads.sort(key=lambda x: int(x.get("score", 0)), reverse=True)
+            
+            sendable = [l for l in scored_leads if l.get("tier") in ("A", "B")]
+            if sendable:
+                log.info("Sending Email #1 to %d Hot/Warm new leads...", len(sendable))
+                first_email_stats = send_outreach_emails(sendable, email_index=0)
+                stats["new_emails_sent"] = first_email_stats["sent"]
+                
+                # Update status of those we emailed
+                for l in sendable:
+                    l["status"] = "Contacted"
+                    l["sequence_step"] = "0"
+                    l["last_contact_date"] = str(date.today())
+            
+            leads.extend(scored_leads)
+    else:
+        log.info("Skipping prospecting step.")
 
     # Calculate elapsed time
     elapsed_delta = datetime.now() - stats["start_time"]
     minutes, seconds = divmod(int(elapsed_delta.total_seconds()), 60)
     stats["elapsed"] = f"{minutes}m {seconds}s"
 
+    # 6. Save State
     log.info("-" * 45)
-    log.info("Prospecting complete in %s", stats["elapsed"])
-    log.info("  Sources tried:       %d", stats["sources_tried"])
-    log.info("  Candidates found:    %d", stats["candidates_found"])
-    log.info("  Duplicates filtered: %d", stats["duplicates_filtered"])
-    log.info("  New leads accepted:  %d", len(new_leads))
-    log.info("  Cities searched:     %s", ", ".join(stats["cities_searched"]) or "--")
+    log.info("Step 4: Saving State...")
+    save_prospects_to_csv(LEADS_CSV, leads)
 
-    if not new_leads:
-        log.warning("No new leads found today. Skipping remaining steps.")
-        return
-
-    # Step 3: Score leads
+    # 7. Send Digest
     log.info("-" * 45)
-    log.info("Step 3: Scoring %d leads ...", len(new_leads))
-    scored_leads = score_leads_batch(new_leads)
-
-    # Sort by score (highest first)
-    scored_leads.sort(key=lambda x: int(x.get("score", 0)), reverse=True)
-
-    tier_a = sum(1 for l in scored_leads if l.get("tier") == "A")
-    tier_b = sum(1 for l in scored_leads if l.get("tier") == "B")
-    tier_c = sum(1 for l in scored_leads if l.get("tier") == "C")
-    log.info("  Tier A (HOT):  %d", tier_a)
-    log.info("  Tier B (WARM): %d", tier_b)
-    log.info("  Tier C (COLD): %d", tier_c)
-
-    # Step 4: Persist to CSV
-    log.info("-" * 45)
-    log.info("Step 4: Saving %d prospects to %s ...", len(scored_leads), LEADS_CSV)
-    append_prospects_to_csv(LEADS_CSV, scored_leads)
-
-    # Step 5: Preview outreach (if requested)
-    if args.preview_outreach:
-        from outreach.email_agent import preview_sequence
-        log.info("-" * 45)
-        log.info("Step 5: Previewing outreach sequences ...")
-        for lead in scored_leads[:3]:  # Preview first 3
-            print(preview_sequence(lead))
-
-    # Step 6: Send outreach emails autonomously
-    if not args.dry_run and not args.skip_sending:
-        log.info("-" * 45)
-        log.info("Step 6: Autonomously sending outreach emails ...")
-        # Only send for Tier A and B leads
-        sendable = [l for l in scored_leads if l.get("tier") in ("A", "B")]
-        if sendable:
-            send_stats = send_outreach_emails(sendable, email_index=0)
-            log.info("Sending: %d sent, %d failed, %d skipped",
-                     send_stats["sent"], send_stats["failed"], send_stats["skipped"])
-        else:
-            log.info("No Tier A/B leads to send outreach to.")
-    else:
-        log.info("Skipping outreach sending (dry-run or --skip-sending).")
-
-    # Step 7: Send digest email
-    log.info("-" * 45)
-    log.info("Step 7: Sending digest email ...")
-    send_digest(scored_leads, stats, dry_run=args.dry_run)
+    log.info("Step 5: Sending Daily Report...")
+    # Update digest logic if needed, but standard one works
+    send_digest(leads[-stats["leads_accepted"]:], stats)
 
     log.info("=" * 65)
-    log.info("Pipeline complete — %d prospects found, %d Tier A (HOT)",
-             len(scored_leads), tier_a)
+    log.info("Day Complete. %d New Emails, %d Follow-ups, %d Replies Handled, %d Deals Closed.", 
+             stats["new_emails_sent"], stats["followups_sent"], stats["replies_handled"], stats["deals_closed"])
     log.info("=" * 65)
-
 
 if __name__ == "__main__":
     main()
