@@ -22,7 +22,7 @@ from config import (
 
 log = logging.getLogger(__name__)
 
-def alert_client_closed(business_name: str, email: str, conversation_summary: str, next_steps: str) -> bool:
+def alert_client_closed(business_name: str, email: str, conversation_summary: str, next_steps: str, seo_deliverables: str = "") -> bool:
     """Format and send the 'Client Closed' alert via High-Priority Email."""
     
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
@@ -45,8 +45,12 @@ def alert_client_closed(business_name: str, email: str, conversation_summary: st
             <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px;">Context:</h3>
             <pre style="background: #f9f9f9; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-size: 13px;">{conversation_summary}</pre>
             
-            <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; color: #D4AF37;">🎯 WHAT YOU NEED TO DO RIGHT NOW TO CLOSE THIS:</h3>
+            <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; color: #D4AF37;">🎯 WHAT YOU NEED TO DO TO GET PAID:</h3>
             <p style="font-size: 16px; font-weight: bold;">{next_steps}</p>
+            
+            <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; color: #2563EB;">🚀 AUTO-GENERATED SEO FULFILLMENT PACKAGE:</h3>
+            <p style="font-size: 12px; color: #555;">Copy/paste these deliverables into their Google Business Profile to instantly fulfill the service.</p>
+            <pre style="background: #eef2ff; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-size: 13px; border: 1px solid #bfdbfe;">{seo_deliverables}</pre>
             
             <p style="margin-top: 30px; font-size: 12px; color: #888;">
                 LOCALOS Autonomous Closer <br>

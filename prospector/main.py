@@ -35,6 +35,14 @@ from drip_engine import get_due_followups
 from closing_alert import alert_client_closed
 from bounce_detector import extract_bounced_email
 
+# GBP Fulfillent Tools
+try:
+    from gbp_agent.keyword_optimizer import generate_keyword_strategy
+    from gbp_agent.post_generator import generate_monthly_posts
+except ImportError:
+    generate_keyword_strategy = None
+    generate_monthly_posts = None
+
 # ──────────────────────────────────────────────
 # Logging Setup
 # ──────────────────────────────────────────────
@@ -147,8 +155,19 @@ def main() -> None:
         elif status_intent == "CLOSED":
             lead["status"] = "Won"
             stats["deals_closed"] += 1
-            log.info("🎉 %s CLOSED! Sending WhatsApp Alert...", biz_name)
-            alert_client_closed(biz_name, sender, history[-300:], next_steps)
+            log.info("🎉 %s CLOSED! Generating auto-fulfillment package...", biz_name)
+            
+            # Auto-Fulfillment: Build the SEO package
+            seo_deliverables = "SYSTEM ERROR: GBP Agent tools failed to load."
+            if generate_keyword_strategy and generate_monthly_posts:
+                try:
+                    kw_strat = generate_keyword_strategy(biz_name, lead.get("niche", ""), lead.get("city", ""))
+                    posts = generate_monthly_posts(biz_name, lead.get("niche", ""), "No special promotions, just highlight expertise")
+                    seo_deliverables = f"--- 1. OPTIMIZED CATEGORIES & KEYWORDS ---\n{kw_strat}\n\n--- 2. MONTHLY GBP POSTS ---\n{posts}"
+                except Exception as e:
+                    seo_deliverables = f"Failed to generate SEO deliverables: {str(e)}"
+            
+            alert_client_closed(biz_name, sender, history[-300:], next_steps, seo_deliverables)
         else:
             lead["status"] = "Replied"
             log.info("%s is INTERESTED. AI handled the objection.", biz_name)
