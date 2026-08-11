@@ -34,6 +34,7 @@ from ai_closer import generate_expert_reply
 from drip_engine import get_due_followups
 from closing_alert import alert_client_closed
 from bounce_detector import extract_bounced_email
+from self_healer import heal_codebase
 
 # GBP Fulfillent Tools
 try:
@@ -319,5 +320,9 @@ if __name__ == "__main__":
         
         # Send internal diagnostic report
         send_error_alert(error_msg, trace)
+        
+        # 🚑 AGI Auto-Patching Engine
+        log.info("Triggering Auto-Patching Engine...")
+        heal_codebase(error_msg, trace)
         
         sys.exit(0)
