@@ -29,9 +29,6 @@ TARGET_CITIES: dict[str, list[str]] = {
         "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide",
         "Gold Coast", "Canberra", "Hobart", "Darwin", "Newcastle",
     ],
-    "UAE": [
-        "Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah",
-    ],
 }
 
 # Flatten all cities for easy iteration
