@@ -441,6 +441,15 @@ def prospect_leads(
                         if not _is_relevant_result(title, body, href, niche_keywords):
                             continue
 
+                        # Competitor tracking for AI FOMO
+                        # The first result in the search is usually the #1 ranked competitor
+                        top_competitor = "your biggest competitor"
+                        if search_results:
+                            first_title = search_results[0].get("title", "")
+                            if first_title and "Yelp" not in first_title and "BBB" not in first_title:
+                                # Clean up the title a bit
+                                top_competitor = first_title.split("|")[0].split("-")[0].strip()
+                        
                         stats["candidates_found"] += 1
 
                         # Deep extract
@@ -453,7 +462,8 @@ def prospect_leads(
                         lead_data["city"] = city
                         lead_data["country"] = country
                         lead_data["date_scraped"] = today
-                        lead_data["outreach_status"] = "new"
+                        lead_data["status"] = "New"
+                        lead_data["top_competitor"] = top_competitor
 
                         # Dedup
                         combined = existing_leads + new_leads
