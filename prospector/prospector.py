@@ -388,13 +388,18 @@ def prospect_leads(
         if d:
             seen_domains.add(d)
 
+    # Dynamically load targets from self-optimizer
+    import self_optimizer
+    dynamic_targets = self_optimizer.get_current_targets()
+    banned_markets = set(dynamic_targets.get("banned_markets", []))
+
     # Filter niches if specified
-    niches_to_use = NICHES
+    niches_to_use = dynamic_targets["niches"]
     if target_niches:
-        niches_to_use = [n for n in NICHES if n["name"] in target_niches]
+        niches_to_use = [n for n in niches_to_use if n["name"] in target_niches]
 
     # Filter cities if specified
-    cities_to_use = target_cities or ALL_CITIES
+    cities_to_use = target_cities or dynamic_targets["cities"]
 
     search_sources = [
         ("DuckDuckGo", search_duckduckgo),
@@ -422,6 +427,13 @@ def prospect_leads(
                     break
 
                 niche_name = niche["name"]
+                
+                # AGI Autonomy: Skip if market was banned by self-optimizer
+                market_key = f"{niche_name} in {city}"
+                if market_key in banned_markets:
+                    log.warning("Skipping banned dead market: %s", market_key)
+                    continue
+                    
                 niche_keywords = niche["keywords"]
                 queries = niche["queries"]
 

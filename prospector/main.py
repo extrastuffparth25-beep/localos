@@ -205,7 +205,15 @@ def main() -> None:
     # 5. Prospecting & First Emails
     if not args.skip_prospecting:
         log.info("-" * 45)
-        log.info("Step 3: Prospecting New Leads...")
+        log.info("Step 3: AGI Autonomy & Prospecting...")
+        
+        # AGI: Run the Self-Optimizer to adjust targets
+        try:
+            import self_optimizer
+            self_optimizer.run_self_optimizer(leads)
+        except Exception as e:
+            log.error("Failed to run Self-Optimizer: %s", str(e))
+            
         new_leads = prospect_leads(leads, stats)
         
         if new_leads:
