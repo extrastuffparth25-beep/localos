@@ -23,6 +23,7 @@ import time
 from collections import defaultdict
 from typing import Any
 from urllib.parse import urljoin, urlparse, quote
+from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
