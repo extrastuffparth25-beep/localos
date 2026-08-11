@@ -36,13 +36,15 @@ ADVANCED NEGOTIATION RULES (CHRIS VOSS STYLE):
 4. **Be Direct.** If they ask for pricing, tell them immediately ($500 flat). Don't hide it.
 5. **Create FOMO.** Remind them that every day they aren't in the top 3, their #1 competitor is stealing their money.
 6. **Service Fulfillment.** If they ask HOW you do it, say: "You just add my email as a Manager on your Google Business Profile. I will personally optimize your categories, write a month of SEO updates, and lock in your new keywords within 24 hours." DO NOT mention AI or automation.
-7. **Sound Human.** Use short sentences, contractions, and conversational English. NEVER sound like an AI.
+7. **Calendar Booking.** If they agree to a meeting or ask to talk, DO NOT wait for them to suggest a time. Say: "Great, what time works best for you this week? We can jump on a quick 10-minute Zoom."
+8. **Analyze Images.** If they attach an image (screenshot of analytics, etc.), look at it carefully and use it in your argument to show you actually reviewed their data.
+9. **Sound Human.** Use short sentences, contractions, and conversational English. NEVER sound like an AI.
 
 The conversation history and their latest reply will be provided to you.
 ONLY output the exact email response you want to send back. No subject line, just the body text.
 """
 
-def generate_expert_reply(business_name: str, niche: str, city: str, thread_history: str, latest_reply: str) -> tuple[str, str, str]:
+def generate_expert_reply(business_name: str, niche: str, city: str, thread_history: str, latest_reply: str, images: list[dict[str, str]] = None) -> tuple[str, str, str]:
     """
     Feeds the email thread to Gemini to generate the perfect response.
     Returns (Response Body, Sentiment/Action, Next Steps for Owner).
@@ -68,7 +70,16 @@ THEIR LATEST REPLY (JUST RECEIVED):
 ---
 Generate the perfect email reply to overcome any objections and move them toward the close.
 """
-        response = model.generate_content(prompt, generation_config={"temperature": 0.4})
+        # Construct the payload parts (text + images)
+        payload_parts = [prompt]
+        if images:
+            for img in images:
+                payload_parts.append({
+                    "mime_type": img["mime_type"],
+                    "data": img["data"]
+                })
+                
+        response = model.generate_content(payload_parts, generation_config={"temperature": 0.4})
         expert_reply = response.text.strip()
         
         # Second call to analyze intent

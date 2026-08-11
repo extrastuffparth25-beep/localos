@@ -136,12 +136,22 @@ def main() -> None:
         history = lead.get("conversation_history", "")
         history += f"\n\nCLIENT ({date.today()}): {reply['body']}"
         
-        # Ask Gemini to handle it
-        expert_response, status_intent, next_steps = generate_expert_reply(
-            biz_name, lead.get("niche", ""), lead.get("city", ""), history, reply['body']
-        )
-        
-        history += f"\n\nAI ({date.today()}): {expert_response}"
+        # Ask AI Closer
+        try:
+            images = reply.get("images", [])
+            expert_response, status_intent, next_steps = generate_expert_reply(
+                business_name=biz_name,
+                niche=lead.get("niche", "Business"),
+                city=lead.get("city", ""),
+                thread_history=history,
+                latest_reply=reply['body'],
+                images=images
+            )
+            history += f"\n\nAI ({date.today()}): {expert_response}"
+        except Exception as e:
+            log.error("AI Generation failed for %s: %s", biz_name, str(e))
+            continue
+            
         lead["conversation_history"] = history
         
         # Send the AI response back

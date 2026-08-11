@@ -11,6 +11,7 @@ import email
 from email.header import decode_header
 import logging
 import re
+import base64
 from typing import Any
 
 from config import OUTREACH_GMAIL_USER, OUTREACH_GMAIL_APP_PASSWORD
@@ -25,25 +26,41 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\n+', '\n', text)
     return text.strip()
 
-def get_email_body(msg) -> str:
-    """Extract plain text body from an email message."""
+def get_email_body_and_images(msg) -> tuple[str, list[dict[str, str]]]:
+    """Extract plain text body and base64 encoded images from an email."""
+    body_text = ""
+    images = []
+    
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
             content_disposition = str(part.get("Content-Disposition"))
+            
             if content_type == "text/plain" and "attachment" not in content_disposition:
                 try:
-                    return part.get_payload(decode=True).decode()
+                    body_text += part.get_payload(decode=True).decode()
                 except:
                     pass
+            elif content_type in ["image/jpeg", "image/png"] and part.get_payload(decode=True):
+                try:
+                    img_data = part.get_payload(decode=True)
+                    b64_data = base64.b64encode(img_data).decode("utf-8")
+                    images.append({
+                        "mime_type": content_type,
+                        "data": b64_data
+                    })
+                    log.info("Extracted %s attachment.", content_type)
+                except Exception as e:
+                    log.warning("Failed to extract image: %s", str(e))
     else:
         content_type = msg.get_content_type()
         if content_type == "text/plain":
             try:
-                return msg.get_payload(decode=True).decode()
+                body_text = msg.get_payload(decode=True).decode()
             except:
                 pass
-    return ""
+                
+    return clean_text(body_text), images
 
 def is_auto_responder(subject: str, body: str) -> bool:
     """Check if the email is an automated out-of-office reply."""
@@ -99,7 +116,7 @@ def scan_for_replies(prospect_emails: list[str]) -> tuple[list[dict[str, str]], 
                     if isinstance(subject, bytes):
                         subject = subject.decode(encoding if encoding else "utf-8")
                         
-                    body = clean_text(get_email_body(msg))
+                    body, images = get_email_body_and_images(msg)
                     
                     # Mark as read immediately
                     mail.store(e_id, '+FLAGS', '\\Seen')
@@ -119,7 +136,8 @@ def scan_for_replies(prospect_emails: list[str]) -> tuple[list[dict[str, str]], 
                         replies.append({
                             "email": sender_email,
                             "subject": subject,
-                            "body": body
+                            "body": body,
+                            "images": images
                         })
 
         mail.logout()

@@ -16,15 +16,17 @@ Enhanced with business-specific data extraction:
 from __future__ import annotations
 
 import logging
+import os
 import random
 import re
 import time
-from datetime import date
+from collections import defaultdict
 from typing import Any
 from urllib.parse import urljoin, urlparse, quote
 
 import requests
 from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
 
 from config import (
     ALL_CITIES,
@@ -41,6 +43,17 @@ from config import (
     SKIP_DOMAINS,
     TARGET_CITIES,
 )
+from scorer import score_lead
+
+# Stealth Engine: Rotating User Agents
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
+]
 
 log = logging.getLogger(__name__)
 
@@ -57,38 +70,40 @@ _PHONE_RE = re.compile(
     r"\d{3,4}",
 )
 
-# Headers
-_HEADERS: dict[str, str] = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/125.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-_session = requests.Session()
-_session.headers.update(_HEADERS)
-
 
 # ──────────────────────────────────────────────
 # HTTP Helpers
 # ──────────────────────────────────────────────
+def _fetch_html(url: str, timeout: int = REQUEST_TIMEOUT) -> str:
+    """Fetch HTML content with a timeout, generic headers, and exponential backoff."""
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    }
+    retries = 3
+    backoff = 2
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout, verify=False)
+            if resp.status_code == 200:
+                return resp.text
+            elif resp.status_code in [403, 429]:
+                log.warning("Rate limited (HTTP %s) on %s. Backing off for %ds...", resp.status_code, url, backoff)
+                time.sleep(backoff)
+                backoff *= 2
+            else:
+                break
+        except requests.exceptions.RequestException:
+            pass
+    return ""
+
+
 def _polite_delay() -> None:
     """Sleep for a random interval to stay under rate limits."""
     time.sleep(random.uniform(*REQUEST_DELAY_RANGE))
-
-
-def _fetch_page(url: str) -> str | None:
-    """GET a URL and return the decoded text, or None on failure."""
-    try:
-        resp = _session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        resp.raise_for_status()
-        return resp.text
-    except requests.RequestException as exc:
-        log.debug("Failed to fetch %s: %s", url, exc)
-        return None
 
 
 def _domain_of(url: str) -> str:
@@ -100,21 +115,33 @@ def _domain_of(url: str) -> str:
 # ──────────────────────────────────────────────
 # Search Sources (reused pattern from lead-scraper)
 # ──────────────────────────────────────────────
-def search_duckduckgo(query: str) -> list[dict[str, str]]:
-    """Return results from DuckDuckGo."""
-    try:
-        from ddgs import DDGS
-        ddgs = DDGS()
-        raw = ddgs.text(query, max_results=MAX_SEARCH_RESULTS)
-        results = [
-            {"title": r.get("title", ""), "href": r.get("href", ""), "body": r.get("body", "")}
-            for r in raw
-        ]
-        log.info("DuckDuckGo returned %d results for: %s", len(results), query)
-        return results
-    except Exception as exc:
-        log.warning("DuckDuckGo search failed: %s", exc)
-        return []
+def search_duckduckgo(query: str, max_results: int = MAX_SEARCH_RESULTS) -> list[dict[str, str]]:
+    """Search DuckDuckGo using duckduckgo_search library with backoff."""
+    results = []
+    retries = 3
+    backoff = 2
+    
+    for attempt in range(retries):
+        try:
+            with DDGS() as ddgs:
+                # Need to use 'text' generator and limit the results
+                raw_results = list(ddgs.text(query, max_results=max_results))
+                for r in raw_results:
+                    results.append({
+                        "title": r.get("title", ""),
+                        "href": r.get("href", ""),
+                        "body": r.get("body", "")
+                    })
+                return results
+        except Exception as e:
+            if "RateLimit" in str(e) or "429" in str(e):
+                log.warning("DDG Rate limit hit. Backing off %ds...", backoff)
+                time.sleep(backoff)
+                backoff *= 2
+            else:
+                log.debug("DDG search failed: %s", str(e))
+                break
+    return results
 
 
 def search_google(query: str) -> list[dict[str, str]]:
