@@ -202,6 +202,54 @@ def main() -> None:
             lead["sequence_step"] = str(step)
             lead["last_contact_date"] = str(date.today())
 
+    # 4.5. Anti-Ghosting Protocol (Hot Lead Nudges)
+    log.info("Checking for ghosting Hot Leads...")
+    today_date = date.today()
+    for lead in leads:
+        if lead.get("status") == "Replied" and lead.get("last_contact_date"):
+            try:
+                last_contact = datetime.strptime(lead["last_contact_date"], "%Y-%m-%d").date()
+                days_since = (today_date - last_contact).days
+                
+                if days_since == 3:
+                    biz_name = lead.get("business_name", "Unknown")
+                    to_email = lead.get("email")
+                    log.info("👻 Anti-Ghosting: Nudging %s (No reply in 3 days)", biz_name)
+                    
+                    history = lead.get("conversation_history", "")
+                    # Force Gemini to generate a nudge
+                    prompt_override = "The prospect stopped replying 3 days ago. Write a very short, polite 1-2 sentence email bubbling this up to the top of their inbox. Create FOMO by mentioning their competitor just got another 5-star review. NO SUBJECT LINE. JUST BODY."
+                    
+                    try:
+                        nudge_body, _, _ = generate_expert_reply(
+                            business_name=biz_name,
+                            niche=lead.get("niche", ""),
+                            city=lead.get("city", ""),
+                            thread_history=history,
+                            latest_reply="[SYSTEM PROMPT]: " + prompt_override,
+                            competitor=lead.get("top_competitor", "their biggest competitor"),
+                            rating=lead.get("google_rating", "average"),
+                            reviews=lead.get("review_count", "few"),
+                        )
+                        _send_outreach_email(to_email, "Following up", nudge_body)
+                        lead["conversation_history"] += f"\n\nAI NUDGE ({today_date}): {nudge_body}"
+                        lead["last_contact_date"] = str(today_date)
+                        stats["followups_sent"] += 1
+                    except Exception as e:
+                        log.error("Failed to generate anti-ghosting nudge for %s: %s", biz_name, str(e))
+                        
+                elif days_since >= 7:
+                    biz_name = lead.get("business_name", "Unknown")
+                    to_email = lead.get("email")
+                    log.info("💔 Anti-Ghosting: Breaking up with %s (No reply in 7 days). Marking Lost.", biz_name)
+                    breakup_body = "Hi,\n\nI haven't heard back so I assume improving your Maps ranking isn't a priority right now. I'm going to reach out to a different business in the area to offer the trial instead.\n\nBest,\nParth"
+                    _send_outreach_email(to_email, "Closing the file", breakup_body)
+                    lead["conversation_history"] += f"\n\nAI BREAKUP ({today_date}): {breakup_body}"
+                    lead["status"] = "Lost"
+                    
+            except ValueError:
+                continue
+
     # 5. Prospecting & First Emails
     if not args.skip_prospecting:
         log.info("-" * 45)
