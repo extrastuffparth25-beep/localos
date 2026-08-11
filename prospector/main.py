@@ -27,7 +27,7 @@ from typing import Any
 from config import CSV_FIELDNAMES, LEADS_CSV
 from prospector import prospect_leads
 from scorer import score_leads_batch
-from emailer import send_digest
+from emailer import send_digest, send_error_alert
 from sender import send_outreach_emails, _send_outreach_email
 from inbox_scanner import scan_for_replies
 from ai_closer import generate_expert_reply
@@ -311,7 +311,13 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        log.error("💥 CRITICAL SYSTEM FAILURE: %s", str(e))
-        log.error(traceback.format_exc())
+        error_msg = str(e)
+        trace = traceback.format_exc()
+        log.error("💥 CRITICAL SYSTEM FAILURE: %s", error_msg)
+        log.error(trace)
         log.info("🛡️ Self-Healing Protocol Activated. Exiting safely to prevent GitHub spam.")
+        
+        # Send internal diagnostic report
+        send_error_alert(error_msg, trace)
+        
         sys.exit(0)

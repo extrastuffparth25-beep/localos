@@ -250,3 +250,47 @@ def send_digest(
 
     log.error("All digest send attempts failed.")
     return False
+
+def send_error_alert(error_msg: str, traceback_str: str) -> bool:
+    """Send a critical error alert to the user instead of relying on GitHub failures."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        return False
+        
+    today_str = date.today().strftime("%B %d, %Y")
+    subject = f"🚨 LOCALOS CRITICAL ERROR — {today_str}"
+    
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:40px 20px;background:#050505;font-family:sans-serif;">
+<table width="100%" style="max-width:650px;margin:0 auto;background:#0A0A0A;border:1px solid #330000;border-radius:12px;">
+    <tr><td style="padding:30px;border-bottom:1px solid #1A1A1A;text-align:center;">
+        <h1 style="color:#FF3333;font-size:22px;">LOCALOS Critical Failure</h1>
+        <p style="color:#AAA;">The orchestrator caught a fatal error. The system safely shut down to prevent damage.</p>
+    </td></tr>
+    <tr><td style="padding:20px 30px;">
+        <h3 style="color:#FFF;">Error Message:</h3>
+        <p style="color:#FF6B6B;background:#111;padding:10px;border-radius:5px;font-family:monospace;">{error_msg}</p>
+        <h3 style="color:#FFF;">Traceback:</h3>
+        <pre style="color:#888;background:#111;padding:10px;border-radius:5px;font-size:12px;overflow-x:auto;">{traceback_str}</pre>
+    </td></tr>
+</table></body></html>"""
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = f"LOCALOS Diagnostics <{GMAIL_USER}>"
+    msg["To"] = RECIPIENT_EMAIL
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_USER, RECIPIENT_EMAIL, msg.as_string())
+        log.info("Sent Error Alert email to %s", RECIPIENT_EMAIL)
+        return True
+    except Exception as e:
+        log.error("Failed to send Error Alert email: %s", str(e))
+        return False
+
