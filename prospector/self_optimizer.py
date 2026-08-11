@@ -115,14 +115,14 @@ def run_self_optimizer(leads: list[dict]):
         reply_rate = stats["replied"] / stats["contacted"]
         stats["reply_rate"] = reply_rate
         
-        # Fire bad markets (More than 15 contacted, 0 replies)
-        if stats["contacted"] >= 15 and stats["replied"] == 0:
+        # Fire bad markets (More than 150 contacted, 0 replies)
+        if stats["contacted"] >= 150 and stats["replied"] == 0:
             log.warning("🔥 FIRING MARKET: %s (0%% reply rate after %d emails). Banning permanently.", market_key, stats["contacted"])
             banned_markets.add(market_key)
             fired += 1
             
-        # Identify winners (More than 5% reply rate)
-        if stats["contacted"] >= 5 and reply_rate >= 0.05:
+        # Identify winners (More than 4% reply rate after statistical significance)
+        if stats["contacted"] >= 25 and reply_rate >= 0.04:
             winners.append(stats)
             
     # Brainstorm new markets if we have winners

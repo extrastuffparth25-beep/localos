@@ -1,14 +1,16 @@
 """
-email_agent.py — AI-Powered Hyper-Personalized Outreach Engine.
+email_agent.py — AI-Powered Hyper-Personalized Outreach Engine (Website Auditor).
 
-Uses Gemini to perform a mini-audit of the prospect's Google Business Profile
-and generates an incredibly specific, non-generic first email that proves
-undeniable expertise and creates FOMO.
+Uses Gemini to perform a live mini-audit of the prospect's actual website and
+Google Business Profile, generating an incredibly specific, non-generic first email 
+that proves undeniable expertise and creates FOMO.
 """
 
 import logging
 import os
 import random
+import requests
+from bs4 import BeautifulSoup
 
 try:
     import google.generativeai as genai
@@ -42,8 +44,37 @@ FALLBACK_SEQUENCE = [
     }
 ]
 
+def scrape_website_text(url: str) -> str:
+    """Visits the prospect's website and extracts text to find flaws."""
+    if not url:
+        return ""
+    if not url.startswith("http"):
+        url = "http://" + url
+        
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.extract()
+            
+        text = soup.get_text(separator=' ')
+        # Clean up whitespace and limit length
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = ' '.join(chunk for chunk in chunks if chunk)
+        
+        return text[:2000] # Return the first 2000 chars of the website for Gemini to audit
+    except Exception as e:
+        log.warning("Could not scrape website %s: %s", url, str(e))
+        return ""
+
 def _generate_ai_audit_email(lead: dict, sender_name: str) -> dict[str, str]:
-    """Uses Gemini to write a hyper-personalized email based on prospect data."""
+    """Uses Gemini to write a hyper-personalized email based on prospect data and website audit."""
     if not GEMINI_API_KEY or not genai:
         return FALLBACK_SEQUENCE[0]
         
@@ -53,32 +84,43 @@ def _generate_ai_audit_email(lead: dict, sender_name: str) -> dict[str, str]:
     rating = lead.get("google_rating", "Unknown")
     reviews = lead.get("review_count", "Unknown")
     competitor = lead.get("top_competitor", "your biggest competitor")
+    website = lead.get("website", "")
+    
+    website_content = ""
+    if website:
+        log.info("Auditing website for %s...", biz_name)
+        website_content = scrape_website_text(website)
     
     prompt = f"""
-    You are an elite, highly-paid Local SEO expert writing a cold email to the owner of {biz_name}.
-    They are a {niche} in {city}. 
-    Their current Google rating is {rating} stars with {reviews} reviews.
-    Their top competitor ranking #1 on Maps is {competitor}.
-    
-    Write an extremely short, punchy, cold email. 
-    NO GREETING LIKE "I hope this finds you well". 
-    NO FLUFF.
-    
-    Your goal is to point out exactly why they are losing to {competitor} (e.g. low reviews, not in top 3).
-    Your offer: You will rank them in the top 3 on Google Maps. If they don't get more calls in 30 days, they don't pay.
-    Call to action: Ask if they are open to a quick chat.
-    
-    Make it sound like a busy human typed it on an iPhone. DO NOT SOUND LIKE AI.
-    
-    Format your response EXACTLY like this:
-    SUBJECT: [Your punchy subject line]
-    BODY:
-    [The email body]
-    
-    Sign off as:
-    Best,
-    {sender_name}
-    """
+You are an elite, highly-paid Local SEO expert writing a cold email to the owner of {biz_name}.
+They are a {niche} in {city}. 
+Their current Google rating is {rating} stars with {reviews} reviews.
+Their top competitor ranking #1 on Maps is {competitor}.
+
+Here is the visible text extracted from their actual homepage:
+"{website_content}"
+
+Write an extremely short, punchy, cold email. 
+NO GREETING LIKE "I hope this finds you well". 
+NO FLUFF.
+
+Your goal is to point out exactly why they are losing to {competitor}. 
+CRITICAL: Use the text from their homepage to point out a specific flaw (e.g. no clear service area listed, missing keywords, low trust signals) AND tie that flaw directly into why their Google Business Profile and Maps ranking is suffering. It MUST pitch your core service (Local SEO/Google Maps ranking). Do NOT pitch website redesign or web dev.
+
+Your offer: You will rank them in the top 3 on Google Maps. If they don't get more calls in 30 days, they don't pay.
+Call to action: Ask if they are open to a quick chat.
+
+Make it sound like a busy human typed it on an iPhone. DO NOT SOUND LIKE AI. Use contractions.
+
+Format your response EXACTLY like this:
+SUBJECT: [Your punchy subject line]
+BODY:
+[The email body]
+
+Sign off as:
+Best,
+{sender_name}
+"""
     
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
@@ -102,7 +144,7 @@ def _generate_ai_audit_email(lead: dict, sender_name: str) -> dict[str, str]:
 def generate_outreach_sequence(lead: dict[str, str], sender_name: str = "Parth") -> list[dict[str, str]]:
     """
     Generates the full 4-step sequence. 
-    Email 1 is hyper-personalized via AI.
+    Email 1 is hyper-personalized via AI (Website Auditor).
     Emails 2, 3, and 4 use the fallback templates to keep thread continuity.
     """
     
