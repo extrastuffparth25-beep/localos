@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOCALOS — Client Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>📊</text></svg>">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #030303; --bg2: #0A0A0A; --bg3: #0F0F0F; --bg4: #141414;
+      --gold: #D4AF37; --gold-glow: rgba(212,175,55,0.15); --gold-subtle: rgba(212,175,55,0.08);
+      --text: #FFF; --text2: #A0A0A0; --text3: #666; --text4: #444;
+      --border: #1A1A1A; --border2: #222;
+      --green: #22C55E; --red: #EF4444; --blue: #3B82F6;
+      --font: 'Inter', sans-serif; --font-h: 'Outfit', sans-serif;
+    }
+    html { -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .topbar { position: sticky; top: 0; z-index: 100; background: rgba(3,3,3,0.9); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); padding: 0.75rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
+    .topbar-logo { font-family: var(--font-h); font-size: 1.25rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 0.4rem; text-decoration: none; }
+    .topbar-logo .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+    .topbar-nav { display: flex; gap: 0.25rem; }
+    .topbar-nav a { padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; color: var(--text2); text-decoration: none; transition: all 0.2s; }
+    .topbar-nav a:hover, .topbar-nav a.active { color: var(--gold); background: var(--gold-subtle); }
+    .client-badge { padding: 0.4rem 1rem; border-radius: 100px; background: var(--gold-subtle); border: 1px solid rgba(212,175,55,0.3); font-size: 0.8rem; font-weight: 600; color: var(--gold); }
+
+    .dash-container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+    .dash-header { margin-bottom: 2rem; }
+    .dash-header h1 { font-family: var(--font-h); font-size: 1.75rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .dash-header p { color: var(--text3); font-size: 0.9rem; }
+
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border2); border-radius: 14px; padding: 1.5rem; }
+    .stat-card .label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; }
+    .stat-card .value { font-family: var(--font-h); font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 0.25rem; }
+    .stat-card .change { font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem; }
+    .stat-card .change.up { color: var(--green); }
+    .stat-card .change.down { color: var(--red); }
+
+    /* Charts */
+    .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2rem; }
+    .chart-card { background: var(--bg3); border: 1px solid var(--border2); border-radius: 14px; padding: 1.5rem; }
+    .chart-card h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; }
+    .chart-wrapper { position: relative; height: 280px; }
+
+    /* Recent Activity */
+    .activity-section { background: var(--bg3); border: 1px solid var(--border2); border-radius: 14px; padding: 1.5rem; margin-bottom: 2rem; }
+    .activity-section h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; }
+    .activity-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .activity-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem; border-radius: 8px; background: var(--bg4); }
+    .activity-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .activity-icon.post { background: rgba(59,130,246,0.15); }
+    .activity-icon.review { background: rgba(212,175,55,0.15); }
+    .activity-icon.keyword { background: rgba(34,197,94,0.15); }
+    .activity-text { flex: 1; }
+    .activity-text .title { font-size: 0.85rem; font-weight: 500; }
+    .activity-text .desc { font-size: 0.75rem; color: var(--text3); margin-top: 0.15rem; }
+    .activity-date { font-size: 0.7rem; color: var(--text4); }
+
+    /* Competitors */
+    .competitors { background: var(--bg3); border: 1px solid var(--border2); border-radius: 14px; padding: 1.5rem; }
+    .competitors h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; }
+    .comp-table { width: 100%; border-collapse: collapse; }
+    .comp-table th { padding: 0.6rem 0.75rem; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); text-align: left; border-bottom: 1px solid var(--border2); }
+    .comp-table td { padding: 0.75rem; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+    .comp-rank { font-family: var(--font-h); font-weight: 800; font-size: 1.1rem; }
+    .comp-rank.top { color: var(--green); }
+    .comp-rank.mid { color: var(--gold); }
+    .comp-rank.low { color: var(--red); }
+    .comp-you { background: var(--gold-subtle); }
+
+    @media (max-width: 768px) {
+      .dash-container { padding: 1rem; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .charts-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="index.html" class="topbar-logo"><span class="dot"></span>LOCALOS</a>
+      <nav class="topbar-nav">
+        <a href="index.html">Website</a>
+        <a href="crm.html">CRM</a>
+        <a href="dashboard.html" class="active">Dashboard</a>
+      </nav>
+    </div>
+    <span class="client-badge">Demo Client View</span>
+  </header>
+
+  <div class="dash-container">
+    <div class="dash-header">
+      <h1>📊 Ranking Dashboard</h1>
+      <p>Real-time overview of your Google Maps performance</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Current Ranking</div>
+        <div class="value" style="color:var(--green)">#2</div>
+        <div class="change up">↑ 7 positions from #9</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Google Maps Views</div>
+        <div class="value">2,847</div>
+        <div class="change up">↑ 184% vs last month</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Calls from Google</div>
+        <div class="value" style="color:var(--gold)">67</div>
+        <div class="change up">↑ 312% vs last month</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Google Reviews</div>
+        <div class="value">4.8 ⭐</div>
+        <div class="change up">↑ 12 new reviews this month</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>📈 Ranking History (Last 8 Weeks)</h3>
+        <div class="chart-wrapper"><canvas id="rankChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>📊 Traffic Sources</h3>
+        <div class="chart-wrapper"><canvas id="trafficChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="activity-section">
+      <h3>🔄 Recent Optimizations</h3>
+      <div class="activity-list">
+        <div class="activity-item">
+          <div class="activity-icon post">📝</div>
+          <div class="activity-text">
+            <div class="title">Weekly Google Post Published</div>
+            <div class="desc">"Summer special: 15% off all services this week! Book now at..."</div>
+          </div>
+          <div class="activity-date">2 hours ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon review">⭐</div>
+          <div class="activity-text">
+            <div class="title">Review Response Sent</div>
+            <div class="desc">Responded to 5-star review from "Sarah M." with personalized thank you</div>
+          </div>
+          <div class="activity-date">Yesterday</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon keyword">🔑</div>
+          <div class="activity-text">
+            <div class="title">Keyword Optimization Updated</div>
+            <div class="desc">Added "emergency plumber Dallas" and "24/7 plumbing service" to listing</div>
+          </div>
+          <div class="activity-date">3 days ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon post">📸</div>
+          <div class="activity-text">
+            <div class="title">Photo Added to Profile</div>
+            <div class="desc">Added 3 new high-quality service photos to Google Business Profile</div>
+          </div>
+          <div class="activity-date">5 days ago</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Competitors -->
+    <div class="competitors">
+      <h3>🏆 Competitor Comparison</h3>
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Business</th>
+            <th>Rating</th>
+            <th>Reviews</th>
+            <th>Posts/Mo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="comp-rank top">#1</span></td>
+            <td>City Plumbing Pros</td>
+            <td>4.9 ⭐</td>
+            <td>287</td>
+            <td>4</td>
+          </tr>
+          <tr class="comp-you">
+            <td><span class="comp-rank top">#2</span></td>
+            <td><strong>⭐ Your Business</strong></td>
+            <td><strong>4.8 ⭐</strong></td>
+            <td><strong>156</strong></td>
+            <td><strong>4</strong></td>
+          </tr>
+          <tr>
+            <td><span class="comp-rank mid">#3</span></td>
+            <td>AllStar Plumbing</td>
+            <td>4.7 ⭐</td>
+            <td>203</td>
+            <td>2</td>
+          </tr>
+          <tr>
+            <td><span class="comp-rank low">#4</span></td>
+            <td>Quick Fix Plumbing</td>
+            <td>4.5 ⭐</td>
+            <td>89</td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td><span class="comp-rank low">#5</span></td>
+            <td>Metro Plumbing Co</td>
+            <td>4.3 ⭐</td>
+            <td>134</td>
+            <td>1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // ── Ranking History Chart ──
+    const rankCtx = document.getElementById('rankChart').getContext('2d');
+    new Chart(rankCtx, {
+      type: 'line',
+      data: {
+        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8'],
+        datasets: [{
+          label: 'Google Maps Ranking',
+          data: [9, 8, 6, 5, 4, 3, 2, 2],
+          borderColor: '#D4AF37',
+          backgroundColor: 'rgba(212, 175, 55, 0.1)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#D4AF37',
+          pointBorderColor: '#D4AF37',
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            reverse: true,
+            min: 1,
+            max: 12,
+            ticks: { color: '#666', stepSize: 1, callback: (v) => '#' + v },
+            grid: { color: '#1A1A1A' },
+          },
+          x: {
+            ticks: { color: '#666' },
+            grid: { color: '#1A1A1A' },
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0F0F0F',
+            titleColor: '#D4AF37',
+            bodyColor: '#FFF',
+            borderColor: '#222',
+            borderWidth: 1,
+            callbacks: { label: (ctx) => `Ranking: #${ctx.raw}` }
+          }
+        }
+      }
+    });
+
+    // ── Traffic Sources Chart ──
+    const trafficCtx = document.getElementById('trafficChart').getContext('2d');
+    new Chart(trafficCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Maps Search', 'Direct', 'Discovery', 'Branded'],
+        datasets: [{
+          data: [55, 20, 15, 10],
+          backgroundColor: ['#D4AF37', '#22C55E', '#3B82F6', '#A855F7'],
+          borderColor: '#0F0F0F',
+          borderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#A0A0A0', padding: 15, usePointStyle: true, pointStyle: 'circle' }
+          }
+        },
+        cutout: '65%',
+      }
+    });
+  </script>
+</body>
+</html>

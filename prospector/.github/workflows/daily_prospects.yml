@@ -1,0 +1,44 @@
+name: "🏪 LOCALOS Daily Prospector"
+
+on:
+  schedule:
+    - cron: "0 8 * * *"   # 08:00 UTC = 1:30 PM IST daily
+  workflow_dispatch:       # Manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  prospect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run prospector pipeline
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OUTREACH_GMAIL_USER: ${{ secrets.OUTREACH_GMAIL_USER }}
+          OUTREACH_GMAIL_APP_PASSWORD: ${{ secrets.OUTREACH_GMAIL_APP_PASSWORD }}
+        run: python main.py
+
+      - name: Commit updated prospects.csv
+        run: |
+          git config --global user.name "LOCALOS Bot"
+          git config --global user.email "localos-bot@users.noreply.github.com"
+          git add prospects.csv
+          git diff --staged --quiet || git commit -m "📊 Update prospects.csv — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
