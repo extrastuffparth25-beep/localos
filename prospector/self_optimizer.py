@@ -6,18 +6,25 @@ Analyzes CRM data, fires underperforming markets, and uses AI to pivot into new 
 import json
 import csv
 import logging
+import os
 from pathlib import Path
 from datetime import datetime, date
 
-import google.generativeai as genai
-from config import GEMINI_API_KEY, NICHES, ALL_CITIES, LEADS_CSV
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+from config import NICHES, ALL_CITIES, LEADS_CSV
 
 log = logging.getLogger(__name__)
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 TARGETS_FILE = Path(__file__).parent / "targets.json"
 OPTIMIZER_LOG = Path(__file__).parent / "optimizer_log.json"
 
-if GEMINI_API_KEY:
+if GEMINI_API_KEY and genai:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash', generation_config={"response_mime_type": "application/json"})
 else:
