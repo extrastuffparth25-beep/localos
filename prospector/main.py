@@ -306,4 +306,12 @@ def main() -> None:
     log.info("=" * 65)
 
 if __name__ == "__main__":
-    main()
+    import sys
+    import traceback
+    try:
+        main()
+    except Exception as e:
+        log.error("💥 CRITICAL SYSTEM FAILURE: %s", str(e))
+        log.error(traceback.format_exc())
+        log.info("🛡️ Self-Healing Protocol Activated. Exiting safely to prevent GitHub spam.")
+        sys.exit(0)

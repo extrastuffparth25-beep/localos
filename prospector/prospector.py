@@ -163,7 +163,7 @@ def search_bing(query: str) -> list[dict[str, str]]:
     """Scrape Bing search results page directly."""
     try:
         url = f"https://www.bing.com/search?q={quote(query)}&count={MAX_SEARCH_RESULTS}"
-        html = _fetch_page(url)
+        html = _fetch_html(url)
         if not html:
             return []
         soup = BeautifulSoup(html, "html.parser")
@@ -263,7 +263,7 @@ def deep_extract_contact(url: str, niche_keywords: list[str] | None = None) -> d
     log.debug("Deep-extracting: %s", url)
     _polite_delay()
 
-    homepage_html = _fetch_page(url)
+    homepage_html = _fetch_html(url)
     if not homepage_html:
         return None
 
