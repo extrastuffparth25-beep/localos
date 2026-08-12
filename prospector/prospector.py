@@ -298,7 +298,7 @@ def deep_extract_contact(url: str, niche_keywords: list[str] | None = None) -> d
 
     for link in internal_links[:MAX_PAGES_PER_LEAD - 1]:
         _polite_delay()
-        page_html = _fetch_page(link)
+        page_html = _fetch_html(link)
         if not page_html:
             continue
         all_emails |= _extract_emails(page_html)
