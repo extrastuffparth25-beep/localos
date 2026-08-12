@@ -24,7 +24,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 if GEMINI_API_KEY and genai:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash', generation_config={"response_mime_type": "application/json"})
+    model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     model = None
 
@@ -91,7 +91,14 @@ Return strictly JSON format:
 }}
 """
         response = model.generate_content(prompt)
-        patch = json.loads(response.text)
+        raw_text = response.text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        patch = json.loads(raw_text.strip())
         
         target = patch.get("target_content", "")
         replacement = patch.get("replacement_content", "")
