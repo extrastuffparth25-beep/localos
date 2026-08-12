@@ -31,6 +31,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           OUTREACH_GMAIL_USER: ${{ secrets.OUTREACH_GMAIL_USER }}
           OUTREACH_GMAIL_APP_PASSWORD: ${{ secrets.OUTREACH_GMAIL_APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: cd prospector && python main.py
 
       - name: Commit updated prospects.csv
