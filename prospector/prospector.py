@@ -508,6 +508,10 @@ def prospect_leads(
                         lead_data = deep_extract_contact(href, niche_keywords)
                         if not lead_data:
                             continue
+                            
+                        if not lead_data.get("email") or "@" not in lead_data.get("email"):
+                            log.debug("Skipping lead %s - No email found", lead_data.get("business_name", href))
+                            continue
 
                         # Add metadata
                         lead_data["niche"] = niche_name

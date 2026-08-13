@@ -136,7 +136,7 @@ NICHES: list[dict[str, str]] = [
 # ──────────────────────────────────────────────
 # Prospecting Behaviour
 # ──────────────────────────────────────────────
-DAILY_TARGET: int = 60              # leads to collect per run (Scraping Multiplier)
+DAILY_TARGET: int = 15              # leads WITH EMAILS to collect per run
 MAX_RETRY_CYCLES: int = 3           # full city-shuffle retries
 MAX_PAGES_PER_LEAD: int = 2         # deep crawl page limit (faster)
 REQUEST_DELAY_RANGE: tuple[int, int] = (1, 3)  # seconds between requests (exponential backoff padding)

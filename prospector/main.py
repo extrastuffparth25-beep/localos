@@ -269,7 +269,8 @@ def main() -> None:
             scored_leads = score_leads_batch(new_leads)
             scored_leads.sort(key=lambda x: int(x.get("score", 0)), reverse=True)
             
-            sendable = [l for l in scored_leads if l.get("tier") in ("A", "B")]
+            # Email EVERY scored lead since they are guaranteed to have emails now
+            sendable = scored_leads
             if sendable:
                 log.info("Sending Email #1 to %d Hot/Warm new leads...", len(sendable))
                 first_email_stats = send_outreach_emails(sendable, email_index=0)
