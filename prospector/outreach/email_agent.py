@@ -75,9 +75,6 @@ def scrape_website_text(url: str) -> str:
 
 def _generate_ai_audit_email(lead: dict, sender_name: str) -> dict[str, str]:
     """Uses Gemini to write a hyper-personalized email based on prospect data and website audit."""
-    if not GEMINI_API_KEY or not genai:
-        return FALLBACK_SEQUENCE[0]
-        
     biz_name = lead.get("business_name", "your business")
     niche = lead.get("niche", "business")
     city = lead.get("city", "your city")
@@ -85,7 +82,21 @@ def _generate_ai_audit_email(lead: dict, sender_name: str) -> dict[str, str]:
     reviews = lead.get("review_count", "Unknown")
     competitor = lead.get("top_competitor", "your biggest competitor")
     website = lead.get("website", "")
-    
+
+    def _get_fallback():
+        template = FALLBACK_SEQUENCE[0]
+        return {
+            "subject": template["subject"].format(
+                business_name=biz_name, niche=niche, city=city
+            ),
+            "body": template["body"].format(
+                business_name=biz_name, niche=niche, city=city, sender_name=sender_name
+            )
+        }
+
+    if not GEMINI_API_KEY or not genai:
+        return _get_fallback()
+        
     website_content = ""
     if website:
         log.info("Auditing website for %s...", biz_name)
@@ -124,7 +135,7 @@ Best,
     
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt, generation_config={"temperature": 0.7})
+        response = model.generate_content(prompt)
         text = response.text.strip()
         
         subject = "Quick question"
@@ -138,7 +149,7 @@ Best,
         return {"subject": subject, "body": body}
     except Exception as e:
         log.error("AI Email Generator failed: %s", str(e))
-        return FALLBACK_SEQUENCE[0]
+        return _get_fallback()
 
 
 def generate_outreach_sequence(lead: dict[str, str], sender_name: str = "Parth") -> list[dict[str, str]]:
