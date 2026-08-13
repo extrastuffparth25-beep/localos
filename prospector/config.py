@@ -138,8 +138,8 @@ NICHES: list[dict[str, str]] = [
 # ──────────────────────────────────────────────
 DAILY_TARGET: int = 60              # leads to collect per run (Scraping Multiplier)
 MAX_RETRY_CYCLES: int = 3           # full city-shuffle retries
-MAX_PAGES_PER_LEAD: int = 3         # deep crawl page limit (faster)
-REQUEST_DELAY_RANGE: tuple[int, int] = (3, 7)  # seconds between requests (exponential backoff padding)
+MAX_PAGES_PER_LEAD: int = 2         # deep crawl page limit (faster)
+REQUEST_DELAY_RANGE: tuple[int, int] = (1, 3)  # seconds between requests (exponential backoff padding)
 REQUEST_TIMEOUT: int = 15           # HTTP timeout in seconds
 MAX_SEARCH_RESULTS: int = 25        # results to fetch per query
 

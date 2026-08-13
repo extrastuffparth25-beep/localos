@@ -17,13 +17,19 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+import time
+import urllib.parse
+import warnings
 import random
 import re
-import time
 from collections import defaultdict
+from datetime import datetime, date
 from typing import Any
 from urllib.parse import urljoin, urlparse, quote
-from datetime import date
+
+# Suppress noisy TLS warnings from requests/urllib3 and ddgs
+warnings.filterwarnings("ignore")
 
 import requests
 from bs4 import BeautifulSoup
@@ -125,8 +131,14 @@ def search_duckduckgo(query: str, max_results: int = MAX_SEARCH_RESULTS) -> list
     for attempt in range(retries):
         try:
             with DDGS() as ddgs:
-                # Need to use 'text' generator and limit the results
-                raw_results = list(ddgs.text(query, max_results=max_results))
+                # Need to use 'text' generator safely to prevent infinite loops
+                generator = ddgs.text(query, max_results=max_results)
+                raw_results = []
+                for i, r in enumerate(generator):
+                    if i >= max_results:
+                        break
+                    raw_results.append(r)
+                    
                 for r in raw_results:
                     results.append({
                         "title": r.get("title", ""),
